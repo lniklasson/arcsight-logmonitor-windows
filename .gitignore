@@ -1,0 +1,4 @@
+LogMonitor.properties
+monitor_state.json
+*.log
+*.log.1
