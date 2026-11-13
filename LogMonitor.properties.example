@@ -1,0 +1,179 @@
+# ======================================================================
+# ArcSight Log Monitoring Script Configuration Properties - EXAMPLE
+# ======================================================================
+# Copy this file to LogMonitor.properties in the same folder as
+# LogMonitor.ps1 and adjust the values for your environment.
+# You can also run ".\LogMonitor.ps1 -UpdateConfig" to generate a file
+# with your actual connectors and ArcSight services discovered.
+# Lines starting with # are comments. Format: Key=Value
+# ======================================================================
+
+# Shared Directory Pointer
+CommonFolderPath=C:\arcsight\alertlogs\scripts
+
+# Root directory to search for connector log files
+ConnectorsRootPath=C:\arcsight\connectors
+LogFileFilter=agent.log
+
+# Alert Output Settings (File, Syslog & Event Log)
+AlertLogPath=C:\arcsight\alertlogs\arcsightalerts.log
+SyslogEnabled=true
+SyslogServer=192.0.2.10
+SyslogPort=514
+SyslogFacility=16
+
+# Windows Event Log Settings
+EventLogEnabled=true
+EventLogSource=ArcSightMonitor
+EventLogName=Application
+
+# Global Agent Stats Thresholds
+AgentStatsMinThroughputT=0.01
+AgentStatsMaxCacheC=100
+AgentStatsMinSentS=1
+
+# ======================================================================
+# ArcSight Event IDs per Function
+# ======================================================================
+AlertEventID_Func1=ARC021
+AlertEventID_Func2=ARC022
+AlertEventID_Func3=ARC023
+AlertEventID_Func4=ARC024
+AlertEventID_Func5=ARC025
+AlertEventID_Func6=ARC026
+AlertEventID_Func7=ARC027
+AlertEventID_Func15=ARC035
+AlertEventID_Func16=ARC036
+AlertEventID_Func17=ARC037
+AlertEventID_Func18=ARC038
+AlertEventID_Func19=ARC039
+AlertEventID_Func20=ARC040
+AlertEventID_Func21=ARC041
+AlertEventID_Func22=ARC042
+AlertEventID_Func23=ARC043
+AlertEventID_Func24=ARC044
+AlertEventID_Func25=ARC045
+
+# ======================================================================
+# ArcSight Alert Severity per Function (WARN or CRIT)
+# ======================================================================
+AlertSeverity_Func1=WARN
+AlertSeverity_Func2=WARN
+AlertSeverity_Func3=WARN
+AlertSeverity_Func4=WARN
+AlertSeverity_Func5=WARN
+AlertSeverity_Func6=WARN
+AlertSeverity_Func7=WARN
+AlertSeverity_Func15=WARN
+AlertSeverity_Func16=WARN
+AlertSeverity_Func17=WARN
+AlertSeverity_Func18=WARN
+AlertSeverity_Func19=WARN
+AlertSeverity_Func20=WARN
+AlertSeverity_Func21=WARN
+AlertSeverity_Func22=WARN
+AlertSeverity_Func23=WARN
+AlertSeverity_Func24=WARN
+AlertSeverity_Func25=WARN
+
+# Script Operational Logging Settings
+ScriptLogPath=C:\arcsight\alertlogs\scripts\LogMonitor.log
+MaxScriptLogSizeBytes=104857600
+StateFilePath=C:\arcsight\alertlogs\scripts\monitor_state.json
+
+# ======================================================================
+# Operational Check Configurations (FUNK 1 - 25)
+# ======================================================================
+# Function 1 Configuration: String Pattern Occurrence Threshold
+PatternSearchEnabled=true
+PatternString=[ERROR], [FATAL]
+PatternThresholdCount=100
+PatternLookbackMinutes=15
+
+# Function 2 Configuration: Average EPS Threshold Check
+EpsSearchEnabled=true
+EpsLookbackMinutes=15
+
+# Function 3 Configuration: Windows Service Status Check
+ServiceCheckEnabled=true
+# Discovered ArcSight Services for Function 3
+service.arc_example_syslog.enabled=true
+service.arc_example_windows.enabled=true
+
+# Function 4 Configuration: Disk Free Space Check
+DiskCheckEnabled=true
+DefaultMinDiskFreePercentThreshold=10.0
+
+# Function 5 Configuration: RAM Memory Usage Check
+RamCheckEnabled=true
+MaxRamUsagePercentThreshold=90.0
+
+# Function 6 Configuration: CPU Usage Check
+CpuCheckEnabled=true
+MaxCpuUsagePercentThreshold=90.0
+
+# Function 7 Configuration: Active Directory Account & Password Expiration Check
+AccountCheckEnabled=true
+AccountList=svc_account1, svc_account2
+AccountExpThresholdDays=30
+PasswordExpThresholdDays=14
+
+# Function 15 Configuration: SmartConnector JVM Memory Check
+ConnectorMemoryCheckEnabled=true
+MinConnectorFreePercentThreshold=10.0
+
+# Function 16-19 Configuration: SmartMessage Checks
+RawEventCheckEnabled=true
+DropCountCheckEnabled=true
+PostAggSlcCheckEnabled=true
+ReceiverStatusCheckEnabled=true
+
+# Function 20 Configuration: Scheduled Daily Test Alarm
+TestAlarmEnabled=true
+TestAlarmTime=06:00
+
+# Functions 21-25 Configuration: Advanced Agent Stats Checks
+AgentStatsCheckEnabled=true
+
+# ======================================================================
+# Per-Connector Overrides & Granular Check Controls
+# ======================================================================
+# The section name is the connector's folder name under ConnectorsRootPath.
+
+# --- Connector: example_syslog ---
+example_syslog.enabled=true
+example_syslog.agentstats.enabled=true
+example_syslog.agentstats.missinglog.enabled=true
+example_syslog.agentstats.cache.enabled=true
+example_syslog.agentstats.threads.enabled=true
+example_syslog.agentstats.sent.enabled=true
+example_syslog.agentstats.throughput.enabled=true
+example_syslog.pattern.enabled=true
+example_syslog.eps.enabled=true
+example_syslog.min_eps=0.1
+example_syslog.max_eps=500
+example_syslog.memory.enabled=true
+example_syslog.rawevent.enabled=true
+example_syslog.dropcount.enabled=true
+example_syslog.postaggslc.enabled=true
+example_syslog.recvstatus.enabled=true
+
+# --- Connector: example_windows ---
+# Example: a low-volume connector with a narrower EPS range and the
+# throughput check turned off.
+example_windows.enabled=true
+example_windows.agentstats.enabled=true
+example_windows.agentstats.missinglog.enabled=true
+example_windows.agentstats.cache.enabled=true
+example_windows.agentstats.threads.enabled=true
+example_windows.agentstats.sent.enabled=true
+example_windows.agentstats.throughput.enabled=false
+example_windows.pattern.enabled=true
+example_windows.eps.enabled=true
+example_windows.min_eps=0.01
+example_windows.max_eps=50
+example_windows.memory.enabled=true
+example_windows.rawevent.enabled=true
+example_windows.dropcount.enabled=true
+example_windows.postaggslc.enabled=true
+example_windows.recvstatus.enabled=true

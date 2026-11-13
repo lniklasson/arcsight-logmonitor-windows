@@ -14,6 +14,8 @@ A single-file PowerShell script that monitors ArcSight SmartConnectors and the W
 # 1. Generate LogMonitor.properties next to the script (finds connectors and ArcSight services)
 .\LogMonitor.ps1 -UpdateConfig
 
+#    (or copy LogMonitor.properties.example to LogMonitor.properties)
+
 # 2. Edit LogMonitor.properties: set SyslogServer, AccountList, thresholds, etc.
 
 # 3. Send a test alarm to check that syslog delivery works
@@ -22,6 +24,10 @@ A single-file PowerShell script that monitors ArcSight SmartConnectors and the W
 # 4. Run all checks (schedule this, e.g. every 5 minutes)
 .\LogMonitor.ps1 -Check
 ```
+
+## Configuration
+
+All settings live in `LogMonitor.properties` next to the script. [`LogMonitor.properties.example`](LogMonitor.properties.example) shows every key with its default value, plus two example connectors with per-connector overrides. Keys that are missing from the file fall back to the defaults built into the script.
 
 ## Parameters
 
