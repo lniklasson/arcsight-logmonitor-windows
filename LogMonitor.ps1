@@ -4,30 +4,32 @@
  Description    : ArcSight SmartConnector & System Resource Monitoring Controller
                   (Single-file edition - all modules embedded)
  Author         : Lars Niklasson
- Current Version: 5.4
- Last Modified  : 2026-10-12
+ Current Version: 5.5
+ Last Modified  : 2026-11-13
  Requirements   : PowerShell 5.1+
  Embedded       : AlertHandler (v4.3), HostChecks (v4.3), ConnectorChecks (v4.12),
                   ConfigGen (v4.5)
  Changelog      :
-   - v5.4 : Fix: -SendTest skickade bara första gången (daily_test_alarm låg kvar
-            som ALERT i state-filen). Skickar nu alltid via -ForceSend.
-            -SendTest visar vilken syslog-server/port som används och om
-            värdet kommer från LogMonitor.properties eller standardvärdet.
-            Syslog-anslutning har nu riktig 3 s timeout (ConnectAsync) och
-            felmeddelandet visar den faktiska orsaken.
-   - v5.3 : -SendTest skriver en varning (konsol + logg) och avslutar med
-            exitkod 2 om testlarmet inte kunde skickas via syslog.
-   - v5.2 : Efter första misslyckade syslog-sändningen hoppas syslog över för
-            resten av körningen (loggas som WARN per överhoppat larm).
-            Nästa körning försöker skicka på nytt.
-   - v5.1 : Misslyckad syslog-sändning (CEF/TCP) loggas nu som WARN i
-            LogMonitor.log och visas i konsolen med -Debug. Lyckade
-            sändningar loggas som DEBUG när -Debug används.
-   - v5.0 : Sammanslagen till en fil. AlertHandler.ps1, HostChecks.ps1,
-            ConnectorChecks.ps1 och ConfigGen.ps1 är inbäddade som funktioner
+   - v5.5 : CEF Device Vendor changed from "FM" to "Qi". All comments and the
+            changelog translated to English.
+   - v5.4 : Fix: -SendTest only sent on its first run (daily_test_alarm stayed
+            in ALERT in the state file). It now always sends, via -ForceSend.
+            -SendTest shows which syslog server/port is used and whether the
+            value comes from LogMonitor.properties or the built-in default.
+            Syslog connection now has a real 3 s timeout (ConnectAsync), and
+            the error message shows the actual cause.
+   - v5.3 : -SendTest prints a warning (console + log) and exits with code 2
+            if the test alarm could not be sent via syslog.
+   - v5.2 : After the first failed syslog send, syslog is skipped for the
+            rest of the run (logged as WARN for each skipped alert).
+            The next run tries syslog again.
+   - v5.1 : A failed syslog send (CEF/TCP) is now logged as WARN in
+            LogMonitor.log and shown in the console with -Debug. Successful
+            sends are logged as DEBUG when -Debug is used.
+   - v5.0 : Merged into a single file. AlertHandler.ps1, HostChecks.ps1,
+            ConnectorChecks.ps1 and ConfigGen.ps1 are embedded as functions
             (Handle-AlertState, Invoke-HostChecks, Invoke-ConnectorChecks,
-            Invoke-ConfigGen). Ingen funktionell ändring jämfört med v4.6.
+            Invoke-ConfigGen). No functional change compared with v4.6.
    - v4.6 : Automatically sends CLEAR state for monitors when disabled via config.
             Preserves custom settings during -UpdateConfig.
             Fixed case-insensitive matching in -CheckConfig to avoid false 
@@ -60,7 +62,7 @@ $configFile = Join-Path $scriptDir "LogMonitor.properties"
 
 if ($Help -or (-not $Check -and -not $UpdateConfig -and -not $Status -and -not $ResetConfig -and -not $ResetMonitoring -and -not $CheckConfig -and -not $SendTest)) {
     Write-Host "======================================================================"
-    Write-Host " ArcSight Log Monitoring Script (v5.4 Single-file)"
+    Write-Host " ArcSight Log Monitoring Script (v5.5 Single-file)"
     Write-Host "======================================================================"
     Write-Host "Usage: .\LogMonitor.ps1 [Parameters]"
     Write-Host ""
@@ -98,7 +100,7 @@ if ($ResetConfig) {
     $UpdateConfig = $true
 }
 
-# Läs in konfiguration och rensa osynliga BOM-tecken
+# Read configuration and strip invisible BOM characters
 $existingConfig = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
 if (Test-Path $configFile) {
     Get-Content $configFile -Encoding UTF8 | ForEach-Object {
@@ -129,7 +131,7 @@ $stateFilePath   = Get-CfgVal "StateFilePath" "$commonFolder\monitor_state.json"
 $maxLogSizeBytes = [long](Get-CfgVal "MaxScriptLogSizeBytes" "104857600")
 
 # -------------------------------------------------------------------------
-# Hantera -CheckConfig och -NonDefault
+# Handle -CheckConfig and -NonDefault
 # -------------------------------------------------------------------------
 if ($CheckConfig) {
     if (-not (Test-Path $configFile)) {
@@ -137,7 +139,7 @@ if ($CheckConfig) {
         exit 1
     }
 
-    # 1. Globala standardvärden
+    # 1. Global default values
     $globalDefaultDict = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
     @{
         "AgentStatsMinThroughputT"           = "0.01"
@@ -167,7 +169,7 @@ if ($CheckConfig) {
         "ConnectorsRootPath"                 = "C:\arcsight\connectors"
     }.GetEnumerator() | ForEach-Object { $globalDefaultDict[$_.Key] = $_.Value }
 
-    # 2. Standardmallar för per-connector-inställningar
+    # 2. Default templates for per-connector settings
     $connectorDefaultDict = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
     @{
         "enabled"                         = "true"
@@ -196,13 +198,13 @@ if ($CheckConfig) {
         $def = $null
         $isMatched = $false
 
-        # A. Skiftlägesokänslig matchning mot globala inställningar
+        # A. Case-insensitive match against global settings
         if ($globalDefaultDict.ContainsKey($key)) {
             $def = $globalDefaultDict[$key]
             $isMatched = $true
         }
 
-        # B. Matchning mot per-connector-inställningar
+        # B. Match against per-connector settings
         if (-not $isMatched) {
             foreach ($cKey in $connectorDefaultDict.Keys) {
                 if ($key.EndsWith(".$cKey", [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -265,8 +267,8 @@ if (Test-Path $stateFilePath) {
 }
 $currentState = @{}
 
-# Sätts till $true om en syslog-sändning misslyckas; resten av körningen hoppar då
-# över syslog. Återställs automatiskt vid nästa körning (lever bara i minnet).
+# Set to $true when a syslog send fails; the rest of the run then skips syslog.
+# Reset automatically on the next run (kept in memory only).
 $script:syslogSkipRun = $false
 
 
@@ -283,7 +285,7 @@ function Handle-AlertState {
         [string]$ClearMessage,
         [string]$ConfiguredSeverity = "WARN",
         [hashtable]$CustomData = $null,
-        [switch]$ForceSend   # Skicka larmet även om monitorn redan står i ALERT (används av -SendTest)
+        [switch]$ForceSend   # Send the alert even if the monitor is already in ALERT (used by -SendTest)
     )
 
     $wasInAlarm = $false
@@ -389,14 +391,14 @@ function Handle-AlertState {
             $escapedCS2  = $customString2 -replace '\\', '\\' -replace '=', '\='
 
             $cefExtensions = "msg=$escapedMsg cat=$cefCategory cs1Label=StateKey cs1=$ActiveStateKey cs2Label=AlertLine cs2=$escapedCS2 rt=$epochTime"
-            $cefHeader = "CEF:0|FM|ArcSight SmartConnector Monitor|1.0|$EventID|$escapedName|$cefSeverity|$cefExtensions"
+            $cefHeader = "CEF:0|Qi|ArcSight SmartConnector Monitor|1.0|$EventID|$escapedName|$cefSeverity|$cefExtensions"
             $syslogPacket = "<$pri>$syslogTime $hostname $cefHeader" + [char]10
 
             $tcpClient = New-Object System.Net.Sockets.TcpClient
             $tcpClient.SendTimeout = 3000
             $tcpClient.ReceiveTimeout = 3000
-            # Connect() ignorerar SendTimeout och kan hänga ~20 s mot en IP som inte svarar,
-            # därför används ConnectAsync med en egen timeout på 3 sekunder.
+            # Connect() ignores SendTimeout and can hang ~20 s against an IP that does not respond,
+            # so ConnectAsync is used with its own 3-second timeout.
             $connectTask = $tcpClient.ConnectAsync($syslogServer, $syslogPort)
             if (-not $connectTask.Wait(3000)) { throw "Connection timed out after 3000 ms" }
             
@@ -567,7 +569,7 @@ function Invoke-ConnectorChecks {
         }
 
         # ---------------------------------------------------------------------
-        # Hämta loggar: Läs agent.log.1 först (om den finns) och sedan agent.log
+        # Collect logs: read agent.log.1 first (if present), then agent.log
         # ---------------------------------------------------------------------
         $logLines = @();
         $primaryLog = Join-Path $path "current\logs\agent.log";
@@ -636,8 +638,8 @@ function Invoke-ConnectorChecks {
         }
 
         # ---------------------------------------------------------------------
-        # Extrahera [logStatus] - ENBART rader som innehåller 'ET='
-        # Exkludera endast 'ET=Down' kombinerat med 'HT=Up'
+        # Extract [logStatus] - ONLY lines that contain 'ET='
+        # Exclude only 'ET=Down' combined with 'HT=Up'
         # ---------------------------------------------------------------------
         $statsLines = @();
         $statsCutoff = (Get-Date).AddMinutes(-30);
@@ -647,12 +649,12 @@ function Invoke-ConnectorChecks {
                 
                 $contentStr = $matches['content'];
                 
-                # Krav 1: Måste vara en destinationsrad (innehålla ET=)
+                # Rule 1: must be a destination line (contain ET=)
                 if ($contentStr.IndexOf("ET=", [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
                     continue;
                 }
 
-                # Krav 2: Exkludera ENDAST sekundära speglingsrader (ET=Down OCH HT=Up)
+                # Rule 2: exclude ONLY secondary mirror lines (ET=Down AND HT=Up)
                 if ($contentStr.IndexOf("ET=Down", [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and $contentStr.IndexOf("HT=Up", [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { 
                     continue;
                 }
@@ -670,7 +672,7 @@ function Invoke-ConnectorChecks {
             }
         }
 
-        # Sortera kronologiskt
+        # Sort chronologically
         $sortedStats = $statsLines | Sort-Object Time;
         $lastStatus  = $sortedStats | Select-Object -Last 1;
         $firstStatus = $sortedStats | Select-Object -First 1;
@@ -846,7 +848,7 @@ function Invoke-ConnectorChecks {
 
 # ##############################################################################
 #  MODULE: ConfigGen (v4.5)
-#  Properties File Generator - bevarar befintliga värden via Get-CfgVal
+#  Properties File Generator - keeps existing values via Get-CfgVal
 # ##############################################################################
 function Invoke-ConfigGen {
     Write-Log "Starting configuration update (-UpdateConfig)..." -Level "INFO" -Color Cyan
@@ -1092,7 +1094,7 @@ $targetPaths = if ([string]::IsNullOrWhiteSpace($ConnectorPath)) {
 } else { @($ConnectorPath) }
 
 if ($UpdateConfig) {
-    # Generera konfiguration men bevara befintliga värden
+    # Generate configuration but keep existing values
     Invoke-ConfigGen
 }
 
@@ -1103,7 +1105,7 @@ if ($Check) {
     Write-Log "Starting monitoring check against $configFile" -Level "INFO" -Color Cyan
 
     # -------------------------------------------------------------------------
-    # FUNKTION: Generera CLEAR för inaktiverade övervakningar
+    # FUNCTION: Generate CLEAR for disabled monitors
     # -------------------------------------------------------------------------
     foreach ($monitorKey in $previousState.Keys) {
         $stateObj = $previousState[$monitorKey]
@@ -1112,7 +1114,7 @@ if ($Check) {
         if ($wasAlarm) {
             $shouldClear = $false
             
-            # Identifiera om övervakningen tillhör en inaktiverad connector eller global kontroll
+            # Determine whether the monitor belongs to a disabled connector or global check
             foreach ($path in $targetPaths) {
                 $cName = Split-Path $path -Leaf
                 if ($monitorKey.StartsWith("${cName}_", [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -1122,7 +1124,7 @@ if ($Check) {
                         break
                     }
                     
-                    # Kolla delkontroller per connector
+                    # Check per-connector sub-checks
                     if ($monitorKey -like "*_eps" -and (Get-CfgVal "${cName}.eps.enabled" "true").ToLower() -eq "false") { $shouldClear = $true }
                     if ($monitorKey -like "*_pattern_error" -and (Get-CfgVal "${cName}.pattern.enabled" "true").ToLower() -eq "false") { $shouldClear = $true }
                     if ($monitorKey -like "*_jvm_memory" -and (Get-CfgVal "${cName}.memory.enabled" "true").ToLower() -eq "false") { $shouldClear = $true }
@@ -1133,7 +1135,7 @@ if ($Check) {
                 }
             }
 
-            # Kolla globala kontroller
+            # Check global checks
             if ($monitorKey -eq "syslog_service" -and (Get-CfgVal "SyslogEnabled" "true").ToLower() -eq "false") { $shouldClear = $true }
             if ($monitorKey -eq "eventlog_service" -and (Get-CfgVal "EventLogEnabled" "true").ToLower() -eq "false") { $shouldClear = $true }
 
